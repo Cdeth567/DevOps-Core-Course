@@ -57,7 +57,8 @@ jobs:
         working-directory: app_python
         run: |
           pytest -q
-                - name: Install Snyk CLI
+      
+      - name: Install Snyk CLI
         run: npm install -g snyk
 
       - name: Snyk scan (dependencies)
