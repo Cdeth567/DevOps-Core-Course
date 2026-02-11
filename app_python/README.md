@@ -98,3 +98,35 @@ curl http://127.0.0.1:5000/ | python -m json.tool
 | HOST     | 0.0.0.0 | Bind address |
 | PORT     | 5000    | HTTP port |
 | DEBUG    | False   | Flask debug mode |
+
+## Docker
+
+This application can also be built and run as a Docker container.
+
+### Build (local)
+Pattern:
+```bash
+docker build -t <image_name>:<tag> .
+```
+
+### Run
+Pattern:
+```bash
+docker run --rm -p <host_port>:5000 --name <container_name> <image_name>:<tag>
+```
+
+Then test:
+```bash
+curl http://127.0.0.1:<host_port>/
+curl http://127.0.0.1:<host_port>/health
+```
+
+### Pull from Docker Hub
+Pattern:
+```bash
+docker pull <dockerhub_username>/<repo_name>:<tag>
+docker run --rm -p <host_port>:5000 <dockerhub_username>/<repo_name>:<tag>
+```
+
+> Note (Windows PowerShell): `curl` is an alias for `Invoke-WebRequest`.  
+> For classic curl behavior, use `curl.exe`.
