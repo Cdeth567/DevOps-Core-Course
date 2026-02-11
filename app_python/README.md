@@ -130,3 +130,11 @@ docker run --rm -p <host_port>:5000 <dockerhub_username>/<repo_name>:<tag>
 
 > Note (Windows PowerShell): `curl` is an alias for `Invoke-WebRequest`.  
 > For classic curl behavior, use `curl.exe`.
+
+## Testing
+Install dev dependencies:
+- python -m pip install -r requirements-dev.txt
+
+Run tests:
+- pytest
+
