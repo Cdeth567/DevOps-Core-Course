@@ -1,3 +1,5 @@
+[![Python CI (tests + docker)](https://github.com/Cdeth567/DevOps-Core-Course/actions/workflows/python-ci.yml/badge.svg?branch=lab03)](https://github.com/Cdeth567/DevOps-Core-Course/actions/workflows/python-ci.yml)
+
 # DevOps Info Service
 
 ## Overview
