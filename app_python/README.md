@@ -1,3 +1,5 @@
+[![Python CI (tests + docker)](https://github.com/Cdeth567/DevOps-Core-Course/actions/workflows/python-ci.yml/badge.svg?branch=lab03)](https://github.com/Cdeth567/DevOps-Core-Course/actions/workflows/python-ci.yml)
+
 # DevOps Info Service
 
 ## Overview
@@ -130,3 +132,11 @@ docker run --rm -p <host_port>:5000 <dockerhub_username>/<repo_name>:<tag>
 
 > Note (Windows PowerShell): `curl` is an alias for `Invoke-WebRequest`.  
 > For classic curl behavior, use `curl.exe`.
+
+## Testing
+Install dev dependencies:
+- python -m pip install -r requirements-dev.txt
+
+Run tests:
+- pytest
+
