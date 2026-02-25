@@ -1,0 +1,14 @@
+---
+# Default list of packages installed on every server
+common_packages:
+  - python3-pip
+  - curl
+  - git
+  - vim
+  - htop
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+# Optional timezone (set to null to skip)
+common_timezone: "Europe/Stockholm"
