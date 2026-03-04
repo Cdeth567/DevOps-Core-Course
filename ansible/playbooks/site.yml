@@ -1,0 +1,9 @@
+---
+- name: Full site run (provision + deploy)
+  hosts: webservers
+  become: true
+
+  roles:
+    - common
+    - docker
+    - app_deploy
