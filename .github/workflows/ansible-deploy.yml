@@ -38,7 +38,7 @@ jobs:
         run: pip install ansible ansible-lint
 
       - name: Write vault password for syntax check
-        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ansible/.vault_pass
+        run: printf "%s" "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ansible/.vault_pass
 
       - name: Run ansible-lint
         run: |
@@ -78,7 +78,7 @@ jobs:
           ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Write Vault password file
-        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > /tmp/vault_pass
+        run: printf "%s" "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > /tmp/vault_pass
 
       - name: Run Ansible deploy playbook
         env:
