@@ -13,39 +13,31 @@ on:
       - 'ansible/**'
       - '.github/workflows/ansible-deploy.yml'
 
-concurrency:
-  group: ansible-deploy-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
 jobs:
   lint:
     name: Ansible Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
 
       - name: Install Ansible and ansible-lint
         run: pip install ansible ansible-lint
 
-      - name: Write vault password for syntax check
-        run: printf "%s" "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ansible/.vault_pass
+      - name: Write vault password
+        env:
+          VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: printf '%s' "$VAULT_PASS" > ansible/.vault_pass
 
       - name: Run ansible-lint
         run: |
           cd ansible
           ansible-lint playbooks/provision.yml playbooks/deploy.yml playbooks/site.yml
 
-      - name: Clean up vault password
+      - name: Cleanup
         if: always()
         run: rm -f ansible/.vault_pass
 
@@ -55,44 +47,38 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
 
       - name: Install Ansible
         run: pip install ansible
 
-      - name: Install community.docker collection
+      - name: Install collections
         run: ansible-galaxy collection install community.docker community.general
 
-      - name: Configure SSH access to target VM
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Write Vault password file
-        run: printf "%s" "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > /tmp/vault_pass
-
-      - name: Run Ansible deploy playbook
+      - name: Write vault password
         env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
+          VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: printf '%s' "$VAULT_PASS" > /tmp/vault_pass
+
+      - name: Deploy
         run: |
           cd ansible
-          ansible-playbook playbooks/deploy.yml \
-            --vault-password-file /tmp/vault_pass
+          ansible-playbook playbooks/deploy.yml --vault-password-file /tmp/vault_pass
 
-      - name: Clean up Vault password file
+      - name: Cleanup vault pass
         if: always()
         run: rm -f /tmp/vault_pass
 
-      - name: Verify deployment
-        run: |
-          sleep 10
-          curl -f "http://${{ secrets.VM_HOST }}:5000/health" || exit 1
+      - name: Verify health
+        run: sleep 10 && curl -f "http://${{ secrets.VM_HOST }}:5000/health"
