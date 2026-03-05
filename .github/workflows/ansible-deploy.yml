@@ -27,19 +27,14 @@ jobs:
       - name: Install Ansible and ansible-lint
         run: pip install ansible ansible-lint
 
-      - name: Write vault password
-        env:
-          VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: printf '%s' "$VAULT_PASS" > ansible/.vault_pass
-
       - name: Run ansible-lint
+        env:
+          ANSIBLE_VAULT_PASSWORD_FILE: ""
         run: |
           cd ansible
+          # Remove vault_password_file from cfg for lint
+          sed -i '/vault_password_file/d' ansible.cfg
           ansible-lint playbooks/provision.yml playbooks/deploy.yml playbooks/site.yml
-
-      - name: Cleanup
-        if: always()
-        run: rm -f ansible/.vault_pass
 
   deploy:
     name: Deploy Application
@@ -48,37 +43,28 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install Ansible
         run: pip install ansible
-
       - name: Install collections
         run: ansible-galaxy collection install community.docker community.general
-
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Write vault password
+      - name: Deploy
         env:
           VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: printf '%s' "$VAULT_PASS" > /tmp/vault_pass
-
-      - name: Deploy
         run: |
+          printf '%s' "$VAULT_PASS" > /tmp/vault_pass
           cd ansible
           ansible-playbook playbooks/deploy.yml --vault-password-file /tmp/vault_pass
-
-      - name: Cleanup vault pass
+      - name: Cleanup
         if: always()
         run: rm -f /tmp/vault_pass
-
       - name: Verify health
         run: sleep 10 && curl -f "http://${{ secrets.VM_HOST }}:5000/health"
