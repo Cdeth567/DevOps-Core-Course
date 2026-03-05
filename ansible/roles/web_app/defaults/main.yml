@@ -1,0 +1,15 @@
+---
+app_name: devops-app
+# By default the image is dockerhub_username/app_name (username is in Vault)
+docker_image_tag: latest
+app_port: 5000
+app_container_name: "{{ app_name }}"
+app_restart_policy: unless-stopped
+app_env: {}
+health_endpoint: "/health"
+health_timeout_seconds: 30
+
+compose_project_dir: "/opt/{{ app_name }}"
+docker_compose_version: "3.8"
+app_internal_port: 5000
+web_app_wipe: false

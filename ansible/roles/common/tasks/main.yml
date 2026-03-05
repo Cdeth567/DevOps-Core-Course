@@ -1,15 +1,84 @@
 ---
-- name: Update apt cache
-  ansible.builtin.apt:
-    update_cache: true
-    cache_valid_time: 3600
+# Common role: system packages and user setup
+# Tags: common (entire role), packages (apt tasks), users (user management)
 
-- name: Install common packages
-  ansible.builtin.apt:
-    name: "{{ common_packages }}"
-    state: present
+- name: Install required system packages
+  block:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
 
-- name: Set timezone (optional)
-  community.general.timezone:
-    name: "{{ common_timezone }}"
-  when: common_timezone is not none
+    - name: Install essential packages
+      ansible.builtin.apt:
+        name: "{{ common_packages }}"
+        state: present
+
+  rescue:
+    - name: Retry with fix-missing on apt failure
+      ansible.builtin.apt:
+        name: "{{ common_packages }}"
+        state: present
+        update_cache: true
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      # Retry once with --fix-missing to handle partial failures
+      register: apt_retry
+      until: apt_retry is succeeded
+      retries: 1
+      delay: 5
+
+  always:
+    - name: Log package installation completion
+      ansible.builtin.copy:
+        dest: /tmp/ansible_common_packages.log
+        content: |
+          Common packages installation completed at {{ ansible_date_time.iso8601 }}
+          Host: {{ inventory_hostname }}
+        mode: "0644"
+
+  become: true
+  tags:
+    - packages
+    - common
+
+- name: Manage application users
+  block:
+    - name: Ensure app group exists
+      ansible.builtin.group:
+        name: "{{ common_app_group }}"
+        state: present
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ common_app_user }}"
+        group: "{{ common_app_group }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Add app user to docker group
+      ansible.builtin.user:
+        name: "{{ common_app_user }}"
+        groups: docker
+        append: true
+
+  rescue:
+    - name: Log user creation failure
+      ansible.builtin.debug:
+        msg: "User/group creation failed for {{ common_app_user }}. Check system permissions."
+
+  always:
+    - name: Log user setup completion
+      ansible.builtin.copy:
+        dest: /tmp/ansible_common_users.log
+        content: |
+          User setup completed at {{ ansible_date_time.iso8601 }}
+          User: {{ common_app_user }}
+          Host: {{ inventory_hostname }}
+        mode: "0644"
+
+  become: true
+  tags:
+    - users
+    - common
