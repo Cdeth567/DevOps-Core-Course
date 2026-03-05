@@ -6,7 +6,7 @@
         project_src: "{{ compose_project_dir }}"
         state: absent
         remove_volumes: true
-      ignore_errors: true
+      failed_when: false
 
     - name: Remove application directory
       ansible.builtin.file:
