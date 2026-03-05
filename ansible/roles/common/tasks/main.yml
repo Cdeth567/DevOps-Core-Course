@@ -23,7 +23,7 @@
       environment:
         DEBIAN_FRONTEND: noninteractive
       # Retry once with --fix-missing to handle partial failures
-      register: apt_retry
+      register: common_apt_retry
       until: apt_retry is succeeded
       retries: 1
       delay: 5

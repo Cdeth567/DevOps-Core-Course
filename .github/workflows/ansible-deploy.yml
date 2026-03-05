@@ -37,13 +37,17 @@ jobs:
       - name: Install Ansible and ansible-lint
         run: pip install ansible ansible-lint
 
-      - name: Create dummy vault password for lint
-        run: echo "dummy" > ansible/.vault_pass
+      - name: Write vault password for syntax check
+        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ansible/.vault_pass
 
       - name: Run ansible-lint
         run: |
           cd ansible
           ansible-lint playbooks/provision.yml playbooks/deploy.yml playbooks/site.yml
+
+      - name: Clean up vault password
+        if: always()
+        run: rm -f ansible/.vault_pass
 
   deploy:
     name: Deploy Application
