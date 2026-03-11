@@ -1,0 +1,9 @@
+warn_list:
+  - key-order
+  - var-naming
+  - name
+
+skip_list:
+  - key-order[task]
+  - var-naming[no-role-prefix]
+  - name[casing]

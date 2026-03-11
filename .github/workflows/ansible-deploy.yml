@@ -1,0 +1,21 @@
+name: Ansible Deployment
+
+on:
+  push:
+    branches: [master, lab06]
+
+jobs:
+  lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Ansible and ansible-lint
+        run: pip install ansible ansible-lint
+      - name: Run ansible-lint
+        run: |
+          cd ansible
+          ansible-lint playbooks/provision.yml playbooks/deploy.yml playbooks/site.yml

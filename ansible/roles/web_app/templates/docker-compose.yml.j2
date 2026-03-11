@@ -1,0 +1,30 @@
+# Managed by Ansible — do not edit manually
+version: '{{ docker_compose_version }}'
+
+services:
+  {{ app_name }}:
+    image: {{ docker_image }}:{{ docker_image_tag }}
+    container_name: {{ app_container_name }}
+    ports:
+      - "{{ app_port }}:{{ app_internal_port }}"
+    environment:
+      PYTHONUNBUFFERED: "1"
+{% for key, value in app_env.items() %}
+      {{ key }}: "{{ value }}"
+{% endfor %}
+    restart: {{ app_restart_policy }}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ app_internal_port }}{{ health_endpoint }}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    name: {{ app_name }}_network
