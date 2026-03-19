@@ -1,8 +1,8 @@
-name: lab07-monitoring
+name: lab08-monitoring
 
 version: "3.8"
 
-x-default-resources: &default-resources
+x-loki-resources: &loki-resources
   deploy:
     resources:
       limits:
@@ -11,6 +11,36 @@ x-default-resources: &default-resources
       reservations:
         cpus: "0.25"
         memory: 256M
+
+x-prometheus-resources: &prometheus-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 1G
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+x-grafana-resources: &grafana-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 512M
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+x-app-resources: &app-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 256M
+      reservations:
+        cpus: "0.25"
+        memory: 128M
 
 services:
   loki:
@@ -35,7 +65,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
-    <<: *default-resources
+    <<: *loki-resources
 
   promtail:
     image: grafana/promtail:3.0.0
@@ -58,7 +88,40 @@ services:
       loki:
         condition: service_healthy
     restart: unless-stopped
-    <<: *default-resources
+    <<: *app-resources
+
+  prometheus:
+    image: prom/prometheus:v3.9.0
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=10GB
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - logging
+    labels:
+      logging: "promtail"
+      app: "devops-prometheus"
+    depends_on:
+      loki:
+        condition: service_healthy
+      grafana:
+        condition: service_started
+      app-python:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    <<: *prometheus-resources
 
   grafana:
     image: grafana/grafana:12.3.1
@@ -69,6 +132,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_ALLOW_EMBEDDING: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_METRICS_ENABLED: "true"
       GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in monitoring/.env}"
     volumes:
@@ -90,13 +154,13 @@ services:
       timeout: 5s
       retries: 10
       start_period: 25s
-    <<: *default-resources
+    <<: *grafana-resources
 
   app-python:
     build:
       context: ../app_python
       dockerfile: Dockerfile
-    image: devops-info-service:lab07
+    image: devops-info-service:lab08
     container_name: app-python
     environment:
       HOST: 0.0.0.0
@@ -110,27 +174,21 @@ services:
       logging: "promtail"
       app: "devops-python"
     depends_on:
-      promtail:
-        condition: service_started
+      - promtail
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)",
-        ]
-      interval: 15s
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    <<: *default-resources
+    <<: *app-resources
 
 volumes:
   loki-data:
   grafana-data:
   promtail-positions:
+  prometheus-data:
 
 networks:
   logging:
