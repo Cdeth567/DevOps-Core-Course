@@ -1,0 +1,8 @@
+---
+- name: Deploy monitoring stack with Prometheus, Loki and Grafana
+  hosts: webservers
+  become: true
+
+  roles:
+    - docker
+    - monitoring

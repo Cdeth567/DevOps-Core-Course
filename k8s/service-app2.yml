@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-info-service-app2
+  namespace: devops-lab09
+  labels:
+    app.kubernetes.io/name: devops-info-service-app2
+    app.kubernetes.io/instance: devops-info-service-app2
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: devops-core-course
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: devops-info-service-app2
+    app.kubernetes.io/instance: devops-info-service-app2
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

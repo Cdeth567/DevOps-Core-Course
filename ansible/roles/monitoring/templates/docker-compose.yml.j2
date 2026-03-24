@@ -1,0 +1,184 @@
+name: {{ monitoring_project_name }}
+
+version: "3.8"
+
+x-loki-resources: &loki-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 1G
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+x-prometheus-resources: &prometheus-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 1G
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+x-grafana-resources: &grafana-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 512M
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+x-app-resources: &app-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 256M
+      reservations:
+        cpus: "0.25"
+        memory: 128M
+
+services:
+  loki:
+    image: grafana/loki:{{ loki_version }}
+    container_name: loki
+    command:
+      - -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    networks:
+      - {{ monitoring_network_name }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    <<: *loki-resources
+
+  promtail:
+    image: grafana/promtail:{{ promtail_version }}
+    container_name: promtail
+    command:
+      - -config.file=/etc/promtail/config.yml
+    ports:
+      - "9080:9080"
+    volumes:
+      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+      - promtail-positions:/tmp/positions
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - {{ monitoring_network_name }}
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9080/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    <<: *app-resources
+
+  prometheus:
+    image: prom/prometheus:v{{ prometheus_version }}
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time={{ prometheus_retention_days }}d
+      - --storage.tsdb.retention.size={{ prometheus_retention_size }}
+    ports:
+      - "{{ prometheus_port }}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - {{ monitoring_network_name }}
+    depends_on:
+      loki:
+        condition: service_healthy
+      grafana:
+        condition: service_started
+      app-python:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    <<: *prometheus-resources
+
+  grafana:
+    image: grafana/grafana:{{ grafana_version }}
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ALLOW_EMBEDDING: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_METRICS_ENABLED: "true"
+      GF_SECURITY_ADMIN_USER: "{{ grafana_admin_user }}"
+      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - {{ monitoring_network_name }}
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    <<: *grafana-resources
+
+  app-python:
+    image: {{ monitoring_app_image }}:{{ monitoring_app_tag }}
+    container_name: {{ monitoring_app_container_name }}
+    environment:
+      HOST: 0.0.0.0
+      PORT: "{{ monitoring_app_port }}"
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "{{ monitoring_app_port }}:{{ monitoring_app_port }}"
+    networks:
+      - {{ monitoring_network_name }}
+    depends_on:
+      promtail:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:{{ monitoring_app_port }}{{ monitoring_app_health_endpoint }} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    <<: *app-resources
+
+volumes:
+  loki-data:
+  grafana-data:
+  promtail-positions:
+  prometheus-data:
+
+networks:
+  {{ monitoring_network_name }}:
+    driver: bridge

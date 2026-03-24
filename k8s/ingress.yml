@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-lab09-ingress
+  namespace: devops-lab09
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - devops-lab09.local
+      secretName: devops-lab09-tls
+  rules:
+    - host: devops-lab09.local
+      http:
+        paths:
+          - path: /app1(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: devops-info-service
+                port:
+                  number: 80
+          - path: /app2(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: devops-info-service-app2
+                port:
+                  number: 80
