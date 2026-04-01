@@ -1,0 +1,100 @@
+# Default values for devops-info-service.
+# This chart packages the Lab 9 Kubernetes manifests into a reusable Helm chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 3
+revisionHistoryLimit: 10
+partOf: devops-core-course
+component: web
+
+automountServiceAccountToken: false
+terminationGracePeriodSeconds: 30
+
+image:
+  repository: cdeth567/devops-info-service
+  tag: lab09
+  pullPolicy: IfNotPresent
+
+container:
+  port: 5000
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: http
+  nodePort: 30080
+
+appConfig:
+  host: 0.0.0.0
+  debug: "False"
+  serviceVersion: "1.0.0-k8s"
+  serviceDescription: "DevOps course info service on Kubernetes"
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+startupProbe:
+  httpGet:
+    path: /ready
+    port: http
+  periodSeconds: 5
+  failureThreshold: 12
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+hooks:
+  image:
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+  preInstall:
+    enabled: true
+    weight: "-5"
+  postInstall:
+    enabled: true
+    weight: "5"
+    maxAttempts: 30
+    sleepSeconds: 2
