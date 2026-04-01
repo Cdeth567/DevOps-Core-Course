@@ -1,0 +1,39 @@
+---
+monitoring_dir: /opt/monitoring
+monitoring_project_name: lab08-monitoring
+monitoring_network_name: logging
+
+grafana_version: "12.3.1"
+loki_version: "3.0.0"
+promtail_version: "3.0.0"
+prometheus_version: "3.9.0"
+
+monitoring_app_image: "{{ docker_image | default('devops-info-service') }}"
+monitoring_app_tag: "{{ docker_image_tag | default('latest') }}"
+monitoring_app_container_name: app-python
+monitoring_app_port: 8000
+monitoring_app_health_endpoint: /health
+
+grafana_admin_user: admin
+grafana_admin_password: admin
+prometheus_port: 9090
+prometheus_retention_days: 15
+prometheus_retention_size: "10GB"
+prometheus_scrape_interval: "15s"
+
+prometheus_targets:
+  - job: prometheus
+    targets:
+      - localhost:9090
+  - job: loki
+    targets:
+      - loki:3100
+    path: /metrics
+  - job: grafana
+    targets:
+      - grafana:3000
+    path: /metrics
+  - job: app
+    targets:
+      - app-python:8000
+    path: /metrics
