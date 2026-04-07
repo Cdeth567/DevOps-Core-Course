@@ -26,6 +26,26 @@ service:
   targetPort: http
   nodePort: 30080
 
+serviceAccount:
+  create: true
+  name: ""
+  automount: true
+
+secret:
+  enabled: true
+  nameOverride: ""
+  type: Opaque
+  envFrom: true
+  data:
+    username: "change-me"
+    password: "change-me"
+
+vault:
+  enabled: false
+  role: devops-info-service
+  secretPath: secret/data/myapp/config
+  injectFileName: app-config
+
 appConfig:
   host: 0.0.0.0
   debug: "False"

@@ -1,0 +1,10 @@
+vault:
+  enabled: true
+  role: "devops-info-service"
+  secretPath: "secret/data/devops-info-service/config"
+
+serviceAccount:
+  create: true
+  automount: true
+
+podAnnotations: {}
