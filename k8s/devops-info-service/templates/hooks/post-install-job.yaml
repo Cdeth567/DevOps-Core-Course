@@ -1,0 +1,40 @@
+{{- if .Values.hooks.postInstall.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "devops-info-service.fullname" . }}-post-install"
+  labels:
+    {{- include "devops-info-service.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "{{ .Values.hooks.postInstall.weight }}"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "devops-info-service.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: post-install-smoke-test
+          image: "{{ .Values.hooks.image.repository }}:{{ .Values.hooks.image.tag }}"
+          imagePullPolicy: {{ .Values.hooks.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Starting post-install smoke test for {{ include "devops-info-service.fullname" . }}";
+              i=0;
+              until wget -qO- "http://{{ include "devops-info-service.fullname" . }}:{{ .Values.service.port }}{{ .Values.readinessProbe.httpGet.path }}"; do
+                i=$((i+1));
+                if [ "$i" -ge {{ .Values.hooks.postInstall.maxAttempts }} ]; then
+                  echo "Smoke test failed after {{ .Values.hooks.postInstall.maxAttempts }} attempts";
+                  exit 1;
+                fi;
+                echo "Waiting for service endpoint... attempt $i/{{ .Values.hooks.postInstall.maxAttempts }}";
+                sleep {{ .Values.hooks.postInstall.sleepSeconds }};
+              done;
+              echo "Post-install smoke test passed";
+{{- end }}

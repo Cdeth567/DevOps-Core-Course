@@ -1,0 +1,20 @@
+1. Verify the release:
+   helm list -n {{ .Release.Namespace }}
+
+2. Check the workloads:
+   kubectl get all -n {{ .Release.Namespace }}
+
+3. Watch hook execution while installing or upgrading from a second terminal:
+   kubectl get jobs -n {{ .Release.Namespace }} -w
+   kubectl get pods -n {{ .Release.Namespace }} -w
+
+4. Confirm hook cleanup after a successful run:
+   kubectl get jobs -n {{ .Release.Namespace }}
+   kubectl get events -n {{ .Release.Namespace }} --sort-by=.metadata.creationTimestamp
+
+5. Reach the application:
+{{- if eq .Values.service.type "NodePort" }}
+   minikube service {{ include "devops-info-service.fullname" . }} -n {{ .Release.Namespace }} --url
+{{- else }}
+   kubectl get svc {{ include "devops-info-service.fullname" . }} -n {{ .Release.Namespace }}
+{{- end }}
