@@ -1,33 +1,33 @@
 # Lab 11 — Kubernetes Secrets & HashiCorp Vault
 
-В этой лабораторной работе были реализованы два подхода к управлению секретами:
+This lab implemented two approaches to secrets management:
 
-- нативные Kubernetes Secrets, создаваемые вручную и через Helm chart;
-- HashiCorp Vault Agent Injector для файловой инъекции секрета в Pod.
+- native Kubernetes Secrets, created manually and via a Helm chart;
+- HashiCorp Vault Agent Injector for file-based secret injection into a Pod.
 
-**Bonus task не выполнялся.**
+**The bonus task was not completed.**
 
 ---
 
 ## 1. Kubernetes Secrets
 
-### 1.1 Создание секрета через kubectl
+### 1.1 Creating a secret with kubectl
 
-Secret был создан императивной командой:
+The Secret was created using an imperative command:
 
 ```powershell
 kubectl create secret generic app-credentials --from-literal=username=demo-user --from-literal=password=demo-password -n devops-lab11
 ```
 
-### 1.2 Просмотр секрета в YAML
+### 1.2 Viewing the Secret in YAML
 
-Команда:
+Command:
 
 ```powershell
 kubectl get secret app-credentials -n devops-lab11 -o yaml
 ```
 
-Полученный вывод:
+Output obtained:
 
 ```yaml
 apiVersion: v1
@@ -44,16 +44,16 @@ metadata:
 type: Opaque
 ```
 
-### 1.3 Декодирование значений
+### 1.3 Decoding the values
 
-В PowerShell base64-значения были декодированы так:
+In PowerShell, the base64 values were decoded as follows:
 
 ```powershell
 [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl get secret app-credentials -n devops-lab11 -o jsonpath='{.data.username}')))
 [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl get secret app-credentials -n devops-lab11 -o jsonpath='{.data.password}')))
 ```
 
-Результат:
+Result:
 
 ```text
 demo-user
@@ -62,38 +62,38 @@ demo-password
 
 ### 1.4 Base64 encoding vs encryption
 
-`Secret` в Kubernetes по умолчанию хранит значения в YAML в виде base64. Это **encoding**, а не encryption:
+In Kubernetes, a `Secret` stores values in YAML as base64 by default. This is **encoding**, not encryption:
 
-- **encoding** меняет представление данных, но не защищает их;
-- любой пользователь, который может прочитать Secret через API, может декодировать значения;
-- base64 нельзя считать механизмом защиты секрета.
+- **encoding** changes the representation of data, but does not protect it;
+- any user who can read the Secret through the API can decode the values;
+- base64 cannot be considered a protection mechanism for secrets.
 
-### 1.5 Безопасность: encrypted at rest и etcd encryption
+### 1.5 Security: encrypted at rest and etcd encryption
 
-Kubernetes Secrets **не считаются безопасно зашифрованными только потому, что их значения представлены в base64**. Для production-кластеров нужно отдельно включать **encryption at rest** для `etcd`.
+Kubernetes Secrets **are not considered securely encrypted just because their values are represented in base64**. For production clusters, **encryption at rest** must be enabled separately for `etcd`.
 
-`etcd encryption` — это механизм control plane, который шифрует чувствительные ресурсы (прежде всего Secrets) перед записью в `etcd`.
+`etcd encryption` is a control plane mechanism that encrypts sensitive resources (primarily Secrets) before writing them to `etcd`.
 
-Его рекомендуется включать всегда, если:
+It is recommended to enable it whenever:
 
-- кластер не является одноразовой учебной средой;
-- в Secret хранятся токены, пароли, API keys, сертификаты;
-- к control plane или backup-ам `etcd` имеют доступ другие администраторы;
-- есть требования безопасности или комплаенса.
+- the cluster is not a disposable learning environment;
+- Secrets store tokens, passwords, API keys, or certificates;
+- other administrators have access to the control plane or `etcd` backups;
+- there are security or compliance requirements.
 
-Также для production необходимы:
+Production environments also require:
 
-- RBAC-ограничения на чтение Secret;
-- отдельные service account для workloads;
-- использование внешнего secret manager, например Vault.
+- RBAC restrictions for reading Secrets;
+- separate service accounts for workloads;
+- use of an external secret manager, such as Vault.
 
 ---
 
 ## 2. Helm Secret Integration
 
-### 2.1 Изменения в Helm chart
+### 2.1 Changes in the Helm chart
 
-В chart были добавлены и изменены следующие файлы:
+The following files were added or modified in the chart:
 
 ```text
 k8s/devops-info-service/
@@ -106,7 +106,7 @@ k8s/devops-info-service/
 └── values-vault.yaml
 ```
 
-Также были добавлены Vault-related файлы:
+Vault-related files were also added:
 
 ```text
 k8s/vault/
@@ -116,13 +116,13 @@ k8s/vault/
 
 ### 2.2 Secret template
 
-В chart был добавлен файл:
+The following file was added to the chart:
 
 ```text
 k8s/devops-info-service/templates/secrets.yaml
 ```
 
-Его содержимое:
+Its content:
 
 ```yaml
 {{- if .Values.secret.enabled }}
@@ -140,11 +140,11 @@ stringData:
 {{- end }}
 ```
 
-Использование `stringData` упрощает передачу plaintext-значений через Helm: Kubernetes сам кодирует их в base64 при создании Secret.
+Using `stringData` simplifies passing plaintext values through Helm: Kubernetes encodes them into base64 automatically when the Secret is created.
 
-### 2.3 Подключение Secret в Deployment
+### 2.3 Connecting the Secret in the Deployment
 
-Deployment был обновлён так, чтобы получать переменные окружения из Secret через `envFrom`:
+The Deployment was updated so that environment variables are loaded from the Secret via `envFrom`:
 
 ```yaml
 envFrom:
@@ -152,11 +152,11 @@ envFrom:
       name: devops-info-service-secret
 ```
 
-Также для предсказуемой привязки Vault role был добавлен отдельный `ServiceAccount`.
+A separate `ServiceAccount` was also added for predictable Vault role binding.
 
-### 2.4 Resource limits и requests
+### 2.4 Resource limits and requests
 
-После рендера chart были видны следующие значения:
+After rendering the chart, the following values were visible:
 
 ```yaml
 resources:
@@ -170,27 +170,27 @@ resources:
 
 #### Requests vs limits
 
-- **requests** — минимальные ресурсы, которые Kubernetes учитывает при планировании Pod;
-- **limits** — верхняя граница, которую контейнер не должен превышать.
+- **requests** are the minimum resources Kubernetes considers when scheduling a Pod;
+- **limits** are the maximum amount of resources the container should not exceed.
 
-Для небольшого Flask-сервиса эти значения подходят для локального Minikube и демонстрируют базовые best practices.
+For a small Flask service, these values are appropriate for local Minikube usage and demonstrate basic best practices.
 
-### 2.5 Проверка Helm Secret Integration
+### 2.5 Verifying Helm Secret Integration
 
-Рендер chart:
+Chart rendering:
 
 ```powershell
 helm template devops-info-service .\k8s\devops-info-service --namespace devops-lab11 --set image.tag=lab11 --set secret.enabled=true --set secret.data.username=demo-user --set secret.data.password=demo-password
 ```
 
-Из результата было подтверждено, что chart рендерит:
+The result confirmed that the chart renders:
 
 - `ServiceAccount`
 - `Secret`
-- `Deployment` с `serviceAccountName`
+- `Deployment` with `serviceAccountName`
 - `envFrom.secretRef`
 
-Фрагменты отрендеренного манифеста:
+Fragments of the rendered manifest:
 
 ```yaml
 apiVersion: v1
@@ -216,21 +216,21 @@ spec:
             name: devops-info-service-secret
 ```
 
-Установка chart:
+Chart installation:
 
 ```powershell
 helm upgrade --install devops-info-service .\k8s\devops-info-service --namespace devops-lab11 --create-namespace --set image.tag=lab11 --set secret.enabled=true --set secret.data.username=demo-user --set secret.data.password=demo-password --wait --timeout 5m
 ```
 
-### 2.6 Проверка Secret в кластере
+### 2.6 Verifying the Secret in the cluster
 
-Команда:
+Command:
 
 ```powershell
 kubectl get secret devops-info-service-secret -n devops-lab11 -o yaml
 ```
 
-Фактический вывод:
+Actual output:
 
 ```yaml
 apiVersion: v1
@@ -256,46 +256,46 @@ metadata:
 type: Opaque
 ```
 
-### 2.7 Проверка env vars в Pod
+### 2.7 Verifying env vars in the Pod
 
-Имя Pod:
+Pod name:
 
 ```powershell
 $POD = kubectl get pods -n devops-lab11 -l app.kubernetes.io/instance=devops-info-service -o jsonpath='{.items[0].metadata.name}'
 ```
 
-Проверка переменных окружения:
+Checking environment variables:
 
 ```powershell
 kubectl exec -n devops-lab11 $POD -- printenv | Select-String '^(username|password)='
 ```
 
-Фактический вывод:
+Actual output:
 
 ```text
 password=demo-password
 username=demo-user
 ```
 
-Проверка описания Pod:
+Checking the Pod description:
 
 ```powershell
 kubectl describe pod -n devops-lab11 $POD
 ```
 
-Из `describe pod` было подтверждено:
+The `describe pod` output confirmed that:
 
-- используется `Service Account: devops-info-service`;
-- Secret подключён как `Environment Variables from: devops-info-service-secret Secret Optional: false`;
-- сами значения секрета в `kubectl describe pod` не выводятся открытым текстом.
+- `Service Account: devops-info-service` is used;
+- the Secret is connected as `Environment Variables from: devops-info-service-secret Secret Optional: false`;
+- the secret values themselves are not displayed in plaintext in `kubectl describe pod`.
 
 ---
 
 ## 3. HashiCorp Vault Integration
 
-### 3.1 Установка Vault через Helm
+### 3.1 Installing Vault with Helm
 
-Vault был установлен в dev mode:
+Vault was installed in dev mode:
 
 ```powershell
 helm repo add hashicorp https://helm.releases.hashicorp.com
@@ -303,24 +303,24 @@ helm repo update
 helm upgrade --install vault hashicorp/vault --namespace devops-lab11 --create-namespace --set server.dev.enabled=true --set injector.enabled=true --wait --timeout 5m
 ```
 
-Проверка Pod:
+Checking Pods:
 
 ```powershell
 kubectl get pods -n devops-lab11
 ```
 
-После старта были доступны:
+After startup, the following were available:
 
 - `vault-0`
 - `vault-agent-injector-*`
 
-Проверка статуса Vault:
+Checking Vault status:
 
 ```powershell
 kubectl exec -n devops-lab11 vault-0 -- vault status
 ```
 
-Фактический вывод:
+Actual output:
 
 ```text
 Key             Value
@@ -338,22 +338,22 @@ Cluster ID      50bf3a48-77fb-bfab-dc55-777aabcfe866
 HA Enabled      false
 ```
 
-### 3.2 Включение KV и запись секрета
+### 3.2 Enabling KV and writing a secret
 
-Был использован KV secrets engine и создан секрет по пути:
+The KV secrets engine was used, and a secret was created at the following path:
 
 ```text
 secret/devops-info-service/config
 ```
 
-Команды:
+Commands:
 
 ```powershell
 kubectl exec -n devops-lab11 vault-0 -- sh -c "vault kv put secret/devops-info-service/config username=demo-user password=demo-password"
 kubectl exec -n devops-lab11 vault-0 -- sh -c "vault kv get secret/devops-info-service/config"
 ```
 
-Подтверждённый вывод:
+Confirmed output:
 
 ```text
 ============= Secret Path =============
@@ -374,16 +374,16 @@ password    demo-password
 username    demo-user
 ```
 
-### 3.3 Kubernetes auth, policy и role
+### 3.3 Kubernetes auth, policy, and role
 
-Была включена аутентификация Kubernetes:
+Kubernetes authentication was enabled:
 
 ```powershell
 kubectl exec -n devops-lab11 vault-0 -- sh -c "vault auth enable kubernetes || true"
 kubectl exec -n devops-lab11 vault-0 -- sh -c 'vault write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc:443"'
 ```
 
-Для приложения была создана policy с доступом к KV v2 path:
+A policy was created for the application with access to the KV v2 path:
 
 ```hcl
 path "secret/data/devops-info-service/config" {
@@ -399,13 +399,13 @@ path "sys/internal/ui/mounts/secret/data/devops-info-service/config" {
 }
 ```
 
-Эта policy была загружена в Vault и прочитана обратно:
+This policy was loaded into Vault and read back:
 
 ```powershell
 kubectl exec -n devops-lab11 vault-0 -- sh -c "vault policy read devops-info-service"
 ```
 
-Фактический вывод:
+Actual output:
 
 ```text
 path "secret/data/devops-info-service/config" {
@@ -421,15 +421,15 @@ path "sys/internal/ui/mounts/secret/data/devops-info-service/config" {
 }
 ```
 
-Роль была привязана к service account приложения:
+The role was bound to the application service account:
 
 ```powershell
 kubectl exec -n devops-lab11 vault-0 -- sh -c "vault write auth/kubernetes/role/devops-info-service bound_service_account_names=devops-info-service bound_service_account_namespaces=devops-lab11 policies=devops-info-service ttl=24h"
 ```
 
-### 3.4 Включение Vault Agent Injector в Deployment
+### 3.4 Enabling Vault Agent Injector in the Deployment
 
-При рендере chart с `values-vault.yaml` были подтверждены аннотации:
+When rendering the chart with `values-vault.yaml`, the following annotations were confirmed:
 
 ```yaml
 annotations:
@@ -439,25 +439,25 @@ annotations:
   vault.hashicorp.com/agent-inject-secret-app-config: "secret/data/devops-info-service/config"
 ```
 
-### 3.5 Проверка Pod с Vault Injection
+### 3.5 Verifying the Pod with Vault Injection
 
-После исправления policy и роли новый Pod успешно поднялся с двумя контейнерами и завершённым init-container.
+After fixing the policy and role, a new Pod started successfully with two containers and a completed init container.
 
-Команда:
+Command:
 
 ```powershell
 kubectl describe pod -n devops-lab11 devops-info-service-6896694dd9-8gp2w
 ```
 
-Из фактического вывода подтверждено:
+The actual output confirmed that:
 
-- `Annotations` содержат `vault.hashicorp.com/...`;
-- `vault-agent-init` завершился с `Reason: Completed`, `Exit Code: 0`;
-- `vault-agent` работает как sidecar;
-- приложение имеет volume mount `/vault/secrets`;
-- Pod имеет состояние `Running` и `Ready: True`.
+- `Annotations` contain `vault.hashicorp.com/...`;
+- `vault-agent-init` finished with `Reason: Completed`, `Exit Code: 0`;
+- `vault-agent` is running as a sidecar;
+- the application has a volume mount at `/vault/secrets`;
+- the Pod is in `Running` state and `Ready: True`.
 
-Ключевые фрагменты:
+Key fragments:
 
 ```text
 Annotations:
@@ -483,16 +483,16 @@ Containers:
     State: Running
 ```
 
-### 3.6 Проверка файла с секретом внутри Pod
+### 3.6 Verifying the secret file inside the Pod
 
-Команды:
+Commands:
 
 ```powershell
 kubectl exec -n devops-lab11 devops-info-service-6896694dd9-8gp2w -- ls -la /vault/secrets
 kubectl exec -n devops-lab11 devops-info-service-6896694dd9-8gp2w -- cat /vault/secrets/app-config
 ```
 
-Фактический вывод:
+Actual output:
 
 ```text
 total 8
@@ -506,51 +506,51 @@ data: map[password:demo-password username:demo-user]
 metadata: map[created_time:2026-04-07T12:29:19.517034267Z custom_metadata:<nil> deletion_time: destroyed:false version:1]
 ```
 
-Это подтверждает, что Vault Agent Injection работает и файл с секретом действительно появляется в Pod по ожидаемому пути.
+This confirms that Vault Agent Injection works and that the secret file does appear inside the Pod at the expected path.
 
-> Примечание: текущий шаблон рендерит весь KV v2 response (`.Data`), а не только `.Data.data`. Для обязательной части лабораторной это не мешает, так как секрет успешно инжектируется и читается из файла.
+> Note: the current template renders the entire KV v2 response (`.Data`), not only `.Data.data`. For the mandatory part of the lab, this does not interfere with the result, because the secret is successfully injected and read from the file.
 
 ### 3.7 Sidecar injection pattern
 
-Использованный паттерн работы Vault Injector:
+The following Vault Injector pattern was used:
 
-1. Pod создаётся с Vault annotations.
-2. Admission webhook Vault Injector модифицирует Pod spec.
-3. В Pod добавляются:
+1. A Pod is created with Vault annotations.
+2. The Vault Injector admission webhook mutates the Pod spec.
+3. The following are added to the Pod:
    - `vault-agent-init`
    - `vault-agent`
-4. Init container аутентифицируется в Vault через service account token.
-5. Vault Agent получает разрешённый secret path.
-6. Секрет рендерится в общий in-memory volume.
-7. Приложение читает файл из `/vault/secrets/app-config`.
+4. The init container authenticates to Vault using the service account token.
+5. Vault Agent receives access to the allowed secret path.
+6. The secret is rendered into a shared in-memory volume.
+7. The application reads the file from `/vault/secrets/app-config`.
 
-Такой подход позволяет не хранить production-секреты в Git и не вшивать их в контейнерный образ.
+This approach avoids storing production secrets in Git or baking them into the container image.
 
 ---
 
-## 4. Особенности локальной проверки в Minikube
+## 4. Specifics of local verification in Minikube
 
-Изначально chart использовал `replicaCount: 3`. После включения Vault sidecar rollout несколько раз упирался в `progress deadline`, хотя отдельный Pod с Vault уже работал корректно.
+Initially, the chart used `replicaCount: 3`. After enabling the Vault sidecar, the rollout hit the `progress deadline` several times, even though an individual Pod with Vault was already working correctly.
 
-Для стабильной локальной проверки в Minikube был использован:
+For stable local verification in Minikube, the following command was used:
 
 ```powershell
 helm upgrade --install devops-info-service .\k8s\devops-info-service --namespace devops-lab11 --create-namespace -f .\k8s\devops-info-service\values-vault.yaml --set replicaCount=1 --set image.tag=lab11 --set secret.enabled=true --set secret.data.username=demo-user --set secret.data.password=demo-password --wait --timeout 5m
 ```
 
-После этого rollout завершился успешно:
+After that, the rollout completed successfully:
 
 ```powershell
 kubectl rollout status deployment/devops-info-service -n devops-lab11
 ```
 
-Фактический результат:
+Actual result:
 
 ```text
 deployment "devops-info-service" successfully rolled out
 ```
 
-Это не меняет корректность реализации secret management, а только делает проверку устойчивой на локальном одноузловом Minikube.
+This does not change the correctness of the secret management implementation; it only makes verification more stable in a local single-node Minikube environment.
 
 ---
 
@@ -560,71 +560,71 @@ deployment "devops-info-service" successfully rolled out
 
 #### Kubernetes Secrets
 
-Плюсы:
+Pros:
 
-- встроены в Kubernetes;
-- просто использовать через Helm;
-- подходят для простых или учебных сценариев.
+- built into Kubernetes;
+- easy to use via Helm;
+- suitable for simple or educational scenarios.
 
-Минусы:
+Cons:
 
-- base64 не является защитой;
-- без encryption at rest и RBAC это слабый вариант для production;
-- хуже подходят для централизованного управления и ротации.
+- base64 is not protection;
+- without encryption at rest and RBAC, this is a weak option for production;
+- less suitable for centralized management and rotation.
 
 #### HashiCorp Vault
 
-Плюсы:
+Pros:
 
-- централизованное хранение секретов;
-- гибкие policy и auth methods;
-- хорошая модель разделения доступа;
-- можно доставлять секреты в Pod как файлы, не помещая их в image или Git.
+- centralized secret storage;
+- flexible policies and auth methods;
+- a strong access separation model;
+- secrets can be delivered into a Pod as files without placing them into the image or Git.
 
-Минусы:
+Cons:
 
-- настройка сложнее, чем у обычных Kubernetes Secrets;
-- требует дополнительных компонентов и runtime integration.
+- setup is more complex than regular Kubernetes Secrets;
+- requires additional components and runtime integration.
 
-### 5.2 Когда использовать каждый подход
+### 5.2 When to use each approach
 
-Kubernetes Secrets стоит использовать, когда:
+Kubernetes Secrets should be used when:
 
-- приложение простое;
-- окружение временное или учебное;
-- ротация секретов не является критичной;
-- используется RBAC и encryption at rest.
+- the application is simple;
+- the environment is temporary or educational;
+- secret rotation is not critical;
+- RBAC and encryption at rest are enabled.
 
-Vault стоит использовать, когда:
+Vault should be used when:
 
-- секреты высокочувствительные;
-- требуется централизованное управление;
-- нужны policy, auditability и future rotation;
-- нельзя хранить секреты как source of truth в Kubernetes manifests.
+- secrets are highly sensitive;
+- centralized management is required;
+- policies, auditability, and future rotation are needed;
+- secrets cannot be stored as the source of truth in Kubernetes manifests.
 
 ### 5.3 Production recommendations
 
-- не коммитить реальные секреты в Git;
-- хранить в `values.yaml` только placeholder values;
-- включать `etcd` encryption at rest;
-- ограничивать доступ к Secrets через RBAC;
-- использовать отдельные service account для workloads;
-- применять Vault или другой внешний secret manager для production credentials.
+- do not commit real secrets to Git;
+- keep only placeholder values in `values.yaml`;
+- enable `etcd` encryption at rest;
+- restrict access to Secrets via RBAC;
+- use separate service accounts for workloads;
+- use Vault or another external secret manager for production credentials.
 
 ---
 
-## 6. Итог
+## 6. Conclusion
 
-В рамках lab11 были успешно выполнены обязательные задания:
+As part of lab11, the mandatory tasks were completed successfully:
 
-- Secret создан через `kubectl`;
-- значения секрета просмотрены и декодированы;
-- в Helm chart добавлен `templates/secrets.yaml`;
-- приложение получает секреты через environment variables;
-- resource limits/requests настроены;
-- Vault установлен и настроен;
-- Kubernetes auth, policy и role созданы;
-- Vault Agent Injection работает;
-- секрет доступен внутри Pod по пути `/vault/secrets/app-config`.
+- a Secret was created via `kubectl`;
+- the secret values were viewed and decoded;
+- `templates/secrets.yaml` was added to the Helm chart;
+- the application receives secrets through environment variables;
+- resource limits/requests were configured;
+- Vault was installed and configured;
+- Kubernetes auth, policy, and role were created;
+- Vault Agent Injection works;
+- the secret is available inside the Pod at `/vault/secrets/app-config`.
 
-Следовательно, обязательная часть лабораторной работы выполнена полностью.
+Therefore, the mandatory part of the lab assignment was completed in full.
