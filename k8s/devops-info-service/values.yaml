@@ -12,9 +12,28 @@ component: web
 automountServiceAccountToken: false
 terminationGracePeriodSeconds: 30
 
+environment: dev
+logLevel: INFO
+
+featureFlags:
+  visitsCounter: true
+  prometheusMetrics: true
+  readinessProbe: true
+
+config:
+  mountPath: /config
+  fileName: config.json
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 100Mi
+  storageClass: ""
+  mountPath: /data
+
 image:
   repository: cdeth567/devops-info-service
-  tag: lab09
+  tag: lab12
   pullPolicy: IfNotPresent
 
 container:
@@ -24,7 +43,7 @@ service:
   type: NodePort
   port: 80
   targetPort: http
-  nodePort: 30080
+  nodePort: 30081
 
 serviceAccount:
   create: true
@@ -49,7 +68,7 @@ vault:
 appConfig:
   host: 0.0.0.0
   debug: "False"
-  serviceVersion: "1.0.0-k8s"
+  serviceVersion: "1.0.0-lab12"
   serviceDescription: "DevOps course info service on Kubernetes"
 
 strategy:

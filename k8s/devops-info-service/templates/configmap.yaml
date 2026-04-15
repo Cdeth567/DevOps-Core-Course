@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "devops-info-service.configFileConfigMapName" . }}
+  labels:
+    {{- include "devops-info-service.labels" . | nindent 4 }}
+data:
+  {{ .Values.config.fileName }}: |-
+{{ tpl (.Files.Get "files/config.json") . | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "devops-info-service.envConfigMapName" . }}
+  labels:
+    {{- include "devops-info-service.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.environment | quote }}
+  LOG_LEVEL: {{ .Values.logLevel | quote }}
+  FEATURE_VISITS: {{ ternary "true" "false" .Values.featureFlags.visitsCounter | quote }}
+  FEATURE_METRICS: {{ ternary "true" "false" .Values.featureFlags.prometheusMetrics | quote }}
+  FEATURE_READINESS: {{ ternary "true" "false" .Values.featureFlags.readinessProbe | quote }}
+  CONFIG_PATH: {{ printf "%s/%s" .Values.config.mountPath .Values.config.fileName | quote }}
+  VISITS_FILE: {{ printf "%s/visits" .Values.persistence.mountPath | quote }}

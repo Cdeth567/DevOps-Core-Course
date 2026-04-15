@@ -40,6 +40,21 @@
 {{- end -}}
 {{- end -}}
 
+{{/* Name of the ConfigMap used for file-based configuration. */}}
+{{- define "devops-info-service.configFileConfigMapName" -}}
+{{- printf "%s-config" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Name of the ConfigMap used for environment variables. */}}
+{{- define "devops-info-service.envConfigMapName" -}}
+{{- printf "%s-env" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Name of the PersistentVolumeClaim used by the application. */}}
+{{- define "devops-info-service.pvcName" -}}
+{{- printf "%s-data" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* Labels used on all managed resources. */}}
 {{- define "devops-info-service.labels" -}}
 helm.sh/chart: {{ include "devops-info-service.chart" . }}

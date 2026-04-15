@@ -4,8 +4,10 @@ import os
 import platform
 import socket
 import sys
+import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from flask import Flask, Response, g, has_request_context, jsonify, request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -18,6 +20,7 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 5000))
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 START_TIME = datetime.now(timezone.utc)
+DEFAULT_VISITS_FILE = "/data/visits"
 
 REQUEST_LATENCY_BUCKETS = (
     0.005,
@@ -101,6 +104,58 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
+class VisitCounter:
+    """File-backed counter used to persist the number of root endpoint visits."""
+
+    def __init__(self, path_getter):
+        self._path_getter = path_getter
+        self._lock = threading.Lock()
+        self._value = 0
+        self.reload()
+
+    def _path(self) -> Path:
+        return Path(self._path_getter())
+
+    def _read_from_disk(self) -> int:
+        path = self._path()
+        try:
+            return int(path.read_text(encoding="utf-8").strip() or "0")
+        except FileNotFoundError:
+            return 0
+        except ValueError:
+            logger.warning(
+                "Visits file contained invalid data, resetting counter to 0",
+                extra={
+                    "event": "visits.invalid_data",
+                    "service": SERVICE_NAME,
+                },
+            )
+            return 0
+
+    def _write_to_disk(self, value: int) -> None:
+        path = self._path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+        tmp_path.write_text(str(value), encoding="utf-8")
+        os.replace(tmp_path, path)
+
+    def reload(self) -> int:
+        with self._lock:
+            self._value = self._read_from_disk()
+            return self._value
+
+    def get_value(self) -> int:
+        with self._lock:
+            return self._value
+
+    def increment(self) -> int:
+        with self._lock:
+            self._value += 1
+            self._write_to_disk(self._value)
+            return self._value
+
+
+
 def configure_logging() -> logging.Logger:
     """Configure application logging to stdout in JSON format."""
     handler = logging.StreamHandler(sys.stdout)
@@ -121,6 +176,15 @@ def configure_logging() -> logging.Logger:
 
 logger = configure_logging()
 app = Flask(__name__)
+app.config.setdefault("VISITS_FILE", os.getenv("VISITS_FILE", DEFAULT_VISITS_FILE))
+
+
+def get_visits_file_path() -> str:
+    """Return the configured path to the visits counter file."""
+    return app.config.get("VISITS_FILE", DEFAULT_VISITS_FILE)
+
+
+visit_counter = VisitCounter(get_visits_file_path)
 
 
 def get_platform_version() -> str:
@@ -135,6 +199,7 @@ def get_platform_version() -> str:
     return platform.platform()
 
 
+
 def get_uptime() -> dict:
     """Calculate the application's uptime."""
     delta = datetime.now(timezone.utc) - START_TIME
@@ -145,6 +210,7 @@ def get_uptime() -> dict:
         "seconds": seconds,
         "human": f"{hours} hours, {minutes} minutes",
     }
+
 
 
 def get_system_info() -> dict:
@@ -160,6 +226,7 @@ def get_system_info() -> dict:
         }
 
 
+
 def get_client_ip() -> str | None:
     """Return the client IP, preferring X-Forwarded-For when present."""
     if not has_request_context():
@@ -171,15 +238,17 @@ def get_client_ip() -> str | None:
     return request.remote_addr
 
 
+
 def normalize_endpoint() -> str:
     """Return a low-cardinality endpoint label for Prometheus metrics."""
     if not has_request_context():
         return "unknown"
     if request.url_rule and request.url_rule.rule:
         return request.url_rule.rule
-    if request.path in {"/", "/health", "/metrics"}:
+    if request.path in {"/", "/health", "/metrics", "/ready", "/visits"}:
         return request.path
     return "unmatched"
+
 
 
 def build_request_log_context(status_code: int | None = None) -> dict:
@@ -207,6 +276,7 @@ def build_request_log_context(status_code: int | None = None) -> dict:
         context["duration_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
 
     return context
+
 
 
 def finalize_request_metrics(status_code: int) -> None:
@@ -280,6 +350,7 @@ def cleanup_request_metrics(exc) -> None:
 @app.route("/")
 def index():
     """Main endpoint - service and system information."""
+    current_visits = visit_counter.increment()
     uptime = get_uptime()
 
     response = {
@@ -304,8 +375,13 @@ def index():
             "method": request.method,
             "path": request.path,
         },
+        "visits": {
+            "count": current_visits,
+            "storage": get_visits_file_path(),
+        },
         "endpoints": [
             {"path": "/", "method": "GET", "description": "Service information"},
+            {"path": "/visits", "method": "GET", "description": "Visit counter"},
             {"path": "/health", "method": "GET", "description": "Health check"},
             {"path": "/ready", "method": "GET", "description": "Readiness check"},
             {"path": "/metrics", "method": "GET", "description": "Prometheus metrics"},
@@ -313,6 +389,17 @@ def index():
     }
 
     return jsonify(response)
+
+
+@app.route("/visits")
+def visits():
+    """Return the current persisted visit count."""
+    return jsonify(
+        {
+            "visits": visit_counter.get_value(),
+            "storage": get_visits_file_path(),
+        }
+    )
 
 
 @app.route("/health")
@@ -397,6 +484,7 @@ def handle_unexpected_error(error):
 
 
 if __name__ == "__main__":
+    visit_counter.reload()
     logger.info(
         "Application startup",
         extra={

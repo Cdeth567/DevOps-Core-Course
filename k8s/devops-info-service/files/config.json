@@ -1,0 +1,15 @@
+{
+  "applicationName": "{{ include "devops-info-service.fullname" . }}",
+  "environment": "{{ .Values.environment }}",
+  "features": {
+    "visitsCounter": {{ .Values.featureFlags.visitsCounter }},
+    "prometheusMetrics": {{ .Values.featureFlags.prometheusMetrics }},
+    "readinessProbe": {{ .Values.featureFlags.readinessProbe }}
+  },
+  "settings": {
+    "port": {{ .Values.container.port }},
+    "configPath": "{{ .Values.config.mountPath }}/{{ .Values.config.fileName }}",
+    "visitsFile": "{{ .Values.persistence.mountPath }}/visits",
+    "logLevel": "{{ .Values.logLevel }}"
+  }
+}

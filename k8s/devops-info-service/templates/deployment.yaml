@@ -53,11 +53,21 @@ spec:
               value: {{ default .Chart.AppVersion .Values.appConfig.serviceVersion | quote }}
             - name: SERVICE_DESCRIPTION
               value: {{ .Values.appConfig.serviceDescription | quote }}
-          {{- if and .Values.secret.enabled .Values.secret.envFrom }}
           envFrom:
+            - configMapRef:
+                name: {{ include "devops-info-service.envConfigMapName" . }}
+          {{- if and .Values.secret.enabled .Values.secret.envFrom }}
             - secretRef:
                 name: {{ include "devops-info-service.secretName" . }}
           {{- end }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: {{ .Values.config.mountPath }}
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: data-volume
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           startupProbe:
@@ -68,3 +78,15 @@ spec:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "devops-info-service.configFileConfigMapName" . }}
+            items:
+              - key: {{ .Values.config.fileName }}
+                path: {{ .Values.config.fileName }}
+        {{- if .Values.persistence.enabled }}
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: {{ include "devops-info-service.pvcName" . }}
+        {{- end }}

@@ -1,4 +1,6 @@
 replicaCount: 3
+environment: prod
+logLevel: INFO
 
 service:
   type: LoadBalancer
@@ -33,5 +35,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-prod"
+  serviceVersion: "1.0.0-prod-lab12"
   serviceDescription: "Production profile for DevOps Info Service"
