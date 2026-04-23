@@ -1,27 +1,35 @@
 # Lab 13 — GitOps with ArgoCD
 
-## Overview
+## Status
 
-This lab adds a GitOps deployment workflow for the `devops-info-service` Helm chart using ArgoCD.
-The repository now contains:
+The required technical part of Lab 13 has been completed.
 
-- ArgoCD application manifests for a single manual deployment and separate dev/prod environments
-- namespace manifests for the dev and prod environments
-- an ArgoCD Helm values override for local Minikube setup
-- updated Helm environment values for ArgoCD-based deployment
+The only optional improvement for a fully polished submission is to insert real ArgoCD UI screenshots into this report if the instructor strictly requires embedded images inside `k8s/ARGOCD.md`.
 
-Bonus Task with ApplicationSet was intentionally **not implemented**.
+All mandatory technical requirements from the assignment were completed:
+- ArgoCD was installed via Helm
+- the UI is accessible
+- the CLI was installed and login works
+- ArgoCD Application manifests were created
+- the single application deployment works
+- the `dev` and `prod` environments were deployed
+- `dev` uses auto-sync and self-healing
+- `prod` remains manual
+- self-healing was tested
+- pod deletion behavior was tested
+- configuration drift was tested
+
+Bonus Task was **not implemented**.
 
 ---
 
-## 1. ArgoCD installation and access
+## 1. ArgoCD Setup
 
-### Helm installation
+### Installation
 
-ArgoCD is installed into a dedicated `argocd` namespace.
+ArgoCD was installed into a dedicated `argocd` namespace via Helm.
 
-Commands:
-
+Commands used:
 ```powershell
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
@@ -29,370 +37,474 @@ kubectl create namespace argocd
 helm upgrade --install argocd argo/argo-cd `
   --namespace argocd `
   -f .\k8s\argocd\argocd-values.yaml
-kubectl get pods -n argocd
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/part-of=argocd -n argocd --timeout=300s
 ```
 
-The file `k8s/argocd/argocd-values.yaml` sets:
-
-```yaml
-configs:
-  params:
-    server.insecure: true
-server:
-  service:
-    type: ClusterIP
+Installation result:
+```text
+Release "argocd" has been upgraded. Happy Helming!
+NAME: argocd
+NAMESPACE: argocd
+STATUS: deployed
+REVISION: 2
+DESCRIPTION: Upgrade complete
 ```
 
-This simplifies local access by allowing HTTP port-forwarding to the ArgoCD server.
+### Readiness Verification
 
-### Accessing the UI
+After increasing `repoServer` resources and probe timeouts, all major ArgoCD components were running:
 
-Port-forward the ArgoCD server:
+```text
+NAME                                                READY   STATUS    RESTARTS   AGE
+argocd-application-controller-0                     1/1     Running   0          33m
+argocd-applicationset-controller-68856dfdb9-slqp8   1/1     Running   0          33m
+argocd-dex-server-8559c4bc8f-kfl28                  1/1     Running   0          33m
+argocd-notifications-controller-568ff4879-x2v27     1/1     Running   0          33m
+argocd-redis-fcd76bcfb-tzsqp                        1/1     Running   0          33m
+argocd-repo-server-86bd59766c-c976c                 1/1     Running   0          59s
+argocd-server-68646cfd69-rgx6q                      1/1     Running   0          33m
+```
+
+The `argocd-repo-server` endpoint also appeared, confirming that the crash loop issue had been fixed:
+
+```text
+NAME                 ENDPOINTS
+argocd-repo-server   10.244.0.88:8081
+```
+
+### UI Access
+
+The UI was accessed using port-forward:
 
 ```powershell
 kubectl port-forward svc/argocd-server -n argocd 8080:80
 ```
 
-Get the initial admin password:
-
-```powershell
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}"
+Browser URL:
+```text
+http://127.0.0.1:8080
 ```
 
-Decode the password in PowerShell:
+### Initial Admin Password
+
+The initial admin password was retrieved successfully:
 
 ```powershell
 [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}")))
 ```
 
-Open the UI at:
+### CLI Installation and Login
 
-```text
-http://127.0.0.1:8080
-```
-
-Username:
-
-```text
-admin
-```
-
-### ArgoCD CLI installation and login
-
-On Windows, the CLI can be downloaded with PowerShell:
+The CLI was downloaded and used for login:
 
 ```powershell
-$version = (Invoke-RestMethod https://api.github.com/repos/argoproj/argo-cd/releases/latest).tag_name
-$url = "https://github.com/argoproj/argo-cd/releases/download/$version/argocd-windows-amd64.exe"
 Invoke-WebRequest -Uri $url -OutFile .\argocd.exe
-```
-
-Login command:
-
-```powershell
 .\argocd.exe login 127.0.0.1:8080 --insecure
-.\argocd.exe app list
+```
+
+Login result:
+```text
+'admin:login' logged in successfully
+Context '127.0.0.1:8080' updated
 ```
 
 ---
 
-## 2. Application manifests
+## 2. Application Configuration
 
-The following directory was added:
+### Files Added
 
-```text
-k8s/argocd/
-```
+The following manifests were added under `k8s/argocd/`:
+- `application.yaml`
+- `application-dev.yaml`
+- `application-prod.yaml`
+- `namespaces.yaml`
+- `argocd-values.yaml`
 
-It contains:
+### Single Application
 
-- `application.yaml` — single manual ArgoCD Application for the chart
-- `application-dev.yaml` — dev environment with auto-sync and self-heal
-- `application-prod.yaml` — prod environment with manual sync
-- `namespaces.yaml` — dev and prod namespaces
-- `argocd-values.yaml` — Helm values override for installing ArgoCD locally
-
-### Single application manifest
-
-`k8s/argocd/application.yaml` defines a manual ArgoCD Application:
-
-- source repo: `https://github.com/Cdeth567/DevOps-Core-Course.git`
-- target revision: `lab13`
-- chart path: `k8s/devops-info-service`
+`application.yaml` defines a manual single-app deployment in the `devops` namespace:
+- repoURL: `https://github.com/Cdeth567/DevOps-Core-Course.git`
+- targetRevision: `lab13`
+- path: `k8s/devops-info-service`
+- valueFiles: `values-dev.yaml`
 - destination namespace: `devops`
-- sync policy: manual
+- syncPolicy: manual
 
-It uses `values-dev.yaml`, but overrides the service type to `ClusterIP` to avoid NodePort conflicts when multiple ArgoCD applications exist in the same cluster.
+### Multi-Environment Applications
 
-Apply it with:
+#### Dev
+`application-dev.yaml`:
+- namespace: `dev`
+- values file: `values-dev.yaml`
+- automated sync enabled
+- `prune: true`
+- `selfHeal: true`
 
-```powershell
-kubectl apply -f .\k8s\argocd\application.yaml
-kubectl get applications -n argocd
-.\argocd.exe app get devops-info-service
-```
+#### Prod
+`application-prod.yaml`:
+- namespace: `prod`
+- values file: `values-prod.yaml`
+- manual sync
+- no automated sync block
 
-Manual sync:
+### Namespace Separation
 
-```powershell
-.\argocd.exe app sync devops-info-service
-.\argocd.exe app get devops-info-service
-kubectl get all -n devops
-kubectl port-forward svc/devops-info-service-gitops -n devops 8081:80
-```
-
-Verify the app:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8081/health
-Invoke-RestMethod http://127.0.0.1:8081/visits
-```
-
----
-
-## 3. Multi-environment deployment
-
-### Namespace separation
-
-The file `k8s/argocd/namespaces.yaml` creates two namespaces:
-
-```text
-dev
-prod
-```
-
-Apply them with:
+Separate namespaces were created for the environments:
 
 ```powershell
 kubectl apply -f .\k8s\argocd\namespaces.yaml
 ```
 
-### Dev application
-
-`k8s/argocd/application-dev.yaml` deploys the chart into the `dev` namespace using `values-dev.yaml`.
-
-Important settings:
-
-- `releaseName: devops-info-service-dev`
-- destination namespace: `dev`
-- sync policy: automated
-- `prune: true`
-- `selfHeal: true`
-
-Apply it with:
-
-```powershell
-kubectl apply -f .\k8s\argocd\application-dev.yaml
-.\argocd.exe app get devops-info-service-dev
-```
-
-### Prod application
-
-`k8s/argocd/application-prod.yaml` deploys the chart into the `prod` namespace using `values-prod.yaml`.
-
-Important settings:
-
-- `releaseName: devops-info-service-prod`
-- destination namespace: `prod`
-- sync policy: manual
-
-Apply it with:
-
-```powershell
-kubectl apply -f .\k8s\argocd\application-prod.yaml
-.\argocd.exe app get devops-info-service-prod
-```
-
-### Dev vs Prod configuration differences
-
-#### Dev (`values-dev.yaml`)
-
-- `replicaCount: 1`
-- `environment: dev`
-- `logLevel: DEBUG`
-- smaller resource requests and limits
-- `service.type: NodePort`
-- local image: `app_python-devops-info-service:latest`
-- auto-sync enabled in ArgoCD
-
-#### Prod (`values-prod.yaml`)
-
-- `replicaCount: 3`
-- `environment: prod`
-- `logLevel: WARN`
-- higher resource requests and limits
-- `service.type: LoadBalancer`
-- same image but manual promotion workflow
-- ArgoCD sync remains manual
-
-### Why dev is automated and prod is manual
-
-Dev is configured for automatic sync because it is used for fast feedback, iterative changes, and self-healing during development.
-
-Prod remains manual because it is safer to review Git changes before deployment, control the release timing, and confirm readiness before promoting changes to production.
-
-### Verifying both environments
-
-Before syncing applications, make sure the app image is available in Minikube:
-
-```powershell
-minikube image load app_python-devops-info-service:latest
-```
-
-Check ArgoCD applications:
-
-```powershell
-.\argocd.exe app list
-```
-
-Check workloads:
-
-```powershell
-kubectl get pods -n dev
-kubectl get pods -n prod
-kubectl get svc -n dev
-kubectl get svc -n prod
-```
-
-Access dev via Minikube NodePort or port-forward:
-
-```powershell
-kubectl port-forward svc/devops-info-service-dev -n dev 8082:80
-Invoke-RestMethod http://127.0.0.1:8082/visits
-```
-
-Access prod via port-forward:
-
-```powershell
-kubectl port-forward svc/devops-info-service-prod -n prod 8083:80
-Invoke-RestMethod http://127.0.0.1:8083/visits
+Result:
+```text
+namespace/dev created
+namespace/prod created
 ```
 
 ---
 
-## 4. GitOps workflow
+## 3. Deployment via ArgoCD
 
-A GitOps deployment flow for this repository is:
+### Applications Created
 
-1. Modify the Helm chart or values in Git.
-2. Commit the change.
-3. Push the change to the `lab13` branch.
-4. ArgoCD detects the change.
-5. Dev auto-syncs automatically.
-6. Prod becomes `OutOfSync` until a manual sync is approved.
-
-Example change to test the workflow:
-
-- edit `k8s/devops-info-service/values-dev.yaml`
-- change `replicaCount` from `1` to `2`
-- commit and push
-
-Commands:
+Applications were created with:
 
 ```powershell
-git add .
-k8s\devops-info-service\values-dev.yaml
-git commit -m "Update dev replica count for ArgoCD GitOps test"
-git push origin lab13
-.\argocd.exe app get devops-info-service-dev
-.\argocd.exe app get devops-info-service-prod
+kubectl apply -f .\k8s\argocd\application.yaml
+kubectl apply -f .\k8s\argocd\application-dev.yaml
+kubectl apply -f .\k8s\argocd\application-prod.yaml
 ```
 
-Expected behavior:
+### Application List
 
-- `devops-info-service-dev` auto-syncs to the new replica count
-- `devops-info-service-prod` is marked `OutOfSync` until manual sync is triggered
+After fixing `repo-server` and syncing the applications, the statuses were:
 
-Manual prod sync:
+```text
+NAME                             CLUSTER                         NAMESPACE  PROJECT  STATUS     HEALTH       SYNCPOLICY
+argocd/devops-info-service       https://kubernetes.default.svc  devops     default  Synced     Healthy      Manual
+argocd/devops-info-service-dev   https://kubernetes.default.svc  dev        default  Synced     Healthy      Auto-Prune
+argocd/devops-info-service-prod  https://kubernetes.default.svc  prod       default  Synced     Progressing  Manual
+```
+
+At the moment this status was captured, `prod` still showed `Progressing` in ArgoCD, but the deployment itself had already been created successfully, pods were running, and the PVC was bound.
+
+### Single App Sync
+
+Manual sync for the single app:
+
+```powershell
+.\argocd.exe app sync devops-info-service
+```
+
+Result:
+```text
+Sync Status: Synced to lab13 (ce4a8a9)
+Health Status: Healthy
+Phase: Succeeded
+Message: successfully synced (no more tasks)
+```
+
+Resources created:
+- ServiceAccount
+- Secret
+- file-based ConfigMap
+- environment ConfigMap
+- PVC
+- Service
+- Deployment
+- pre-install Job
+- post-install Job
+
+### Prod Sync
+
+Manual sync for the production app:
 
 ```powershell
 .\argocd.exe app sync devops-info-service-prod
 ```
 
+Deployment verification:
+```text
+NAME                                         READY   STATUS      RESTARTS   AGE
+devops-info-service-prod-6bccfb4ff8-dtzfj    1/1     Running     0          18m
+devops-info-service-prod-6bccfb4ff8-mqhwf    1/1     Running     0          18m
+devops-info-service-prod-6bccfb4ff8-xst9p    1/1     Running     0          18m
+devops-info-service-prod-pre-install-sjhkx   0/1     Completed   0          19m
+```
+
+Production PVC:
+```text
+NAME                            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS
+devops-info-service-prod-data   Bound    pvc-656c206c-0c31-436f-b188-aac5d834a733   100Mi      RWO            standard
+```
+
+#### Screenshot
+![alt text](image-3.png)
+
+### Dev Auto-Sync
+
+The dev application was configured for auto-sync and successfully reached the desired state after the values fix:
+
+```text
+Name:               argocd/devops-info-service-dev
+Sync Policy:        Automated (Prune)
+Sync Status:        Synced to lab13 (9b912a4)
+Health Status:      Healthy
+```
+
 ---
 
-## 5. Self-healing and drift detection
+## 4. Environment Differences
 
-### Manual scale drift test (ArgoCD self-healing)
+### Dev Environment
+- namespace: `dev`
+- values file: `values-dev.yaml`
+- sync policy: automated + prune + selfHeal
+- service type: `ClusterIP`
+- replica count: 1
+- debug logging
+- local image used for Minikube:
+  ```yaml
+  image:
+    repository: app_python-devops-info-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  ```
 
-This test should be performed in the **dev** namespace because auto-sync and self-heal are enabled there.
+### Prod Environment
+- namespace: `prod`
+- values file: `values-prod.yaml`
+- sync policy: manual
+- replica count: 3
+- production-oriented values
+- separate PVC and resources
 
-Commands:
+### Why Dev Uses Auto-Sync and Prod Uses Manual Sync
+
+Dev auto-sync is useful because:
+- changes are applied automatically
+- drift is corrected automatically
+- feedback is fast for testing GitOps behavior
+
+Prod remains manual because:
+- deployments are explicitly controlled
+- it is safer for production releases
+- it supports review/approval before release
+
+---
+
+## 5. Self-Healing and Drift Tests
+
+## 5.1 Manual Scale Test (ArgoCD Self-Healing)
+
+### Step
+The deployment in `dev` was manually scaled:
 
 ```powershell
 kubectl scale deployment devops-info-service-dev -n dev --replicas=5
-kubectl get deploy -n dev
-.\argocd.exe app get devops-info-service-dev
-.\argocd.exe app diff devops-info-service-dev
-kubectl get pods -n dev -w
 ```
 
-Expected behavior:
+### Immediate Result
+After manual scaling, five pods were present in `dev`:
 
-- Kubernetes scales the Deployment to 5 replicas immediately.
-- ArgoCD detects that the cluster state no longer matches Git.
-- Because `selfHeal: true` is enabled, ArgoCD restores the deployment to the replica count defined in Git.
+```text
+NAME                                       READY   STATUS
+devops-info-service-dev-5ddbdbdf69-2l42s   1/1     Running
+devops-info-service-dev-5ddbdbdf69-5sqm5   1/1     Running
+devops-info-service-dev-5ddbdbdf69-9qlhn   1/1     Running
+devops-info-service-dev-5ddbdbdf69-9rchp   1/1     Running
+devops-info-service-dev-5ddbdbdf69-cqlsb   1/1     Running
+```
 
-### Pod deletion test (Kubernetes self-healing)
+### Reconciliation Result
+After ArgoCD reconciliation and sync, the app returned to the Git-defined state:
 
-Commands:
+```text
+Sync Status: Synced to lab13 (9b912a4)
+Health Status: Healthy
+```
+
+Final state:
+```text
+NAME                                       READY   STATUS    RESTARTS   AGE
+devops-info-service-dev-5ddbdbdf69-cqlsb   1/1     Running   0          41m
+```
+
+Rollout confirmation:
+```text
+deployment "devops-info-service-dev" successfully rolled out
+```
+
+### Conclusion
+This demonstrates ArgoCD self-healing:
+- manual drift was introduced (`replicas=5`)
+- ArgoCD reconciled the deployment back to the Git state (`replicaCount=1`)
+
+---
+
+## 5.2 Pod Deletion Test (Kubernetes Self-Healing)
+
+### Step
+A pod in the `dev` namespace was deleted:
 
 ```powershell
 kubectl delete pod -n dev -l app.kubernetes.io/instance=devops-info-service-dev
-kubectl get pods -n dev -w
 ```
 
-Expected behavior:
+Result:
+```text
+pod "devops-info-service-dev-5ddbdbdf69-cqlsb" deleted from dev namespace
+```
 
-- The ReplicaSet/Deployment controller recreates the missing pod.
-- This is **Kubernetes self-healing**, not ArgoCD self-healing.
+### Recovery
+Kubernetes immediately recreated a replacement pod:
 
-### Configuration drift test
+```text
+NAME                                       READY   STATUS    RESTARTS   AGE
+devops-info-service-dev-5ddbdbdf69-fnn46   1/1     Running   0          32s
+```
 
-Commands:
+### Conclusion
+This was Kubernetes self-healing, not ArgoCD self-healing:
+- the Deployment/ReplicaSet restored the missing pod automatically
+- ArgoCD was not required for pod recreation
+
+---
+
+## 5.3 Configuration Drift Test
+
+### Step
+A manual label was added to the deployment:
 
 ```powershell
 kubectl label deployment devops-info-service-dev -n dev drift-test=manual --overwrite
-.\argocd.exe app diff devops-info-service-dev
-.\argocd.exe app get devops-info-service-dev
-kubectl get deployment devops-info-service-dev -n dev --show-labels
 ```
 
-Expected behavior:
+Result:
+```text
+deployment.apps/devops-info-service-dev labeled
+```
 
-- ArgoCD detects the drift in the Deployment definition.
-- Dev application returns to `Synced` after self-heal removes the manual label.
+### Reconciliation
+The application was synced again:
 
-### Sync behavior explanation
+```powershell
+.\argocd.exe app sync devops-info-service-dev
+.\argocd.exe app get devops-info-service-dev --refresh
+```
 
-- **Kubernetes self-healing** recreates failed or deleted pods to maintain the desired replica count.
-- **ArgoCD self-healing** reverts manual changes so that live cluster resources match the Git-defined manifests.
-- ArgoCD syncs automatically only for applications with `syncPolicy.automated` enabled.
-- For manual applications, ArgoCD marks them `OutOfSync` and waits for an explicit sync action.
-- The default ArgoCD polling interval is about **3 minutes** (120 seconds plus jitter), unless webhooks or manual refresh are used.
+Final result:
+```text
+Sync Status: Synced to lab13 (9b912a4)
+Health Status: Healthy
+Phase: Succeeded
+Message: successfully synced (no more tasks)
+```
+
+### Conclusion
+This confirms that after manual resource modification, the application can be reconciled back to the Git-defined desired state.
+
+During this test, `argocd app diff` did not produce useful CLI diff output, but the final sync result confirmed successful reconciliation.
 
 ---
 
-## 6. Screenshots to capture during verification
+## 6. ArgoCD Issues Encountered and Fixes
 
-The assignment requires screenshots. Capture these while running the commands above:
+### 6.1 Repo Server CrashLoopBackOff
 
-1. ArgoCD UI showing both `devops-info-service-dev` and `devops-info-service-prod`
-2. Sync status badges for both applications
-3. Application details view for the dev environment
-4. Drift/self-heal example in the diff view
+Initially, `argocd-repo-server` was failing liveness checks and restarting.  
+This caused:
+- `ComparisonError`
+- `connection refused` errors to repo server
+- `Unknown` sync status in applications
+
+Fix applied in `k8s/argocd/argocd-values.yaml`:
+```yaml
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  readinessProbe:
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+```
+
+After the upgrade:
+- repo server became `1/1 Running`
+- endpoints appeared
+- manifest generation worked normally
+
+### 6.2 Dev NodePort Conflict
+
+At one point, dev auto-sync failed because `values-dev.yaml` still used a `NodePort` that conflicted with another service in the cluster.
+
+Fix:
+- changed `values-dev.yaml` service type to `ClusterIP`
+- removed explicit `nodePort`
+
+Final dev service config:
+```yaml
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: http
+```
 
 ---
 
-## 7. Summary
+## 7. Files Changed
 
-The repository was prepared for GitOps deployment with ArgoCD by adding:
+### Added
+- `k8s/ARGOCD.md`
+- `k8s/argocd/argocd-values.yaml`
+- `k8s/argocd/application.yaml`
+- `k8s/argocd/application-dev.yaml`
+- `k8s/argocd/application-prod.yaml`
+- `k8s/argocd/namespaces.yaml`
 
-- ArgoCD installation values for local setup
-- manual Application manifest
-- dev/prod ArgoCD Application manifests
-- namespace manifests for dev and prod
-- cleaned environment values for Helm chart deployment via ArgoCD
+### Modified
+- `k8s/devops-info-service/values-dev.yaml`
+- `k8s/devops-info-service/values-prod.yaml`
 
-Bonus Task with ApplicationSet was intentionally skipped.
+---
+
+## 8. Screenshot Section
+
+### Screenshot 1 — ArgoCD UI with applications list
+![alt text](image.png)
+
+### Screenshot 2 — Single app details
+![alt text](image-2.png)
+
+### Screenshot 3 — Application details view
+![alt text](image-1.png)
+---
+
+## 9. Final Conclusion
+
+All mandatory Lab 13 tasks were completed successfully:
+
+- ArgoCD installed and working
+- UI access configured
+- CLI installed and authenticated
+- declarative Application resources created
+- single-app deployment via ArgoCD completed
+- multi-environment deployment completed (`dev` and `prod`)
+- `dev` uses auto-sync and self-heal
+- `prod` remains manual sync
+- scale drift test completed
+- pod deletion test completed
+- configuration drift test completed
