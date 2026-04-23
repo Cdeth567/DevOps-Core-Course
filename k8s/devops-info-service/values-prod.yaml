@@ -1,6 +1,11 @@
 replicaCount: 3
 environment: prod
-logLevel: INFO
+logLevel: WARN
+
+image:
+  repository: app_python-devops-info-service
+  tag: latest
+  pullPolicy: IfNotPresent
 
 service:
   type: LoadBalancer
@@ -35,5 +40,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-prod-lab12"
-  serviceDescription: "Production profile for DevOps Info Service"
+  serviceVersion: "1.0.0-prod-lab13"
+  serviceDescription: "Production profile for DevOps Info Service managed by ArgoCD"

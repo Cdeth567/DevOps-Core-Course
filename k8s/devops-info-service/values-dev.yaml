@@ -2,46 +2,6 @@ replicaCount: 1
 environment: dev
 logLevel: DEBUG
 
-service:
-  type: NodePort
-  port: 80
-  targetPort: http
-  nodePort: 30081
-
-resources:
-  requests:
-    cpu: 50m
-    memory: 64Mi
-  limits:
-    cpu: 100m
-    memory: 128Mi
-
-readinessProbe:
-  initialDelaySeconds: 2
-  periodSeconds: 5
-  timeoutSeconds: 2
-  failureThreshold: 3
-  httpGet:
-    path: /ready
-    port: http
-
-livenessProbe:
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  timeoutSeconds: 2
-  failureThreshold: 3
-  httpGet:
-    path: /health
-    port: http
-
-appConfig:
-  serviceVersion: "1.0.0-dev-lab12"
-  serviceDescription: "Development profile for DevOps Info Service"
-
-replicaCount: 1
-environment: dev
-logLevel: DEBUG
-
 image:
   repository: app_python-devops-info-service
   tag: latest
@@ -80,5 +40,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-dev-lab12"
-  serviceDescription: "Development profile for DevOps Info Service"
+  serviceVersion: "1.0.0-dev-lab13"
+  serviceDescription: "Development profile for DevOps Info Service managed by ArgoCD"
