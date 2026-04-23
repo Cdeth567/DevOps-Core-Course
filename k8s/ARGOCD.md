@@ -19,8 +19,6 @@ All mandatory technical requirements from the assignment were completed:
 - pod deletion behavior was tested
 - configuration drift was tested
 
-Bonus Task was **not implemented**.
-
 ---
 
 ## 1. ArgoCD Setup
