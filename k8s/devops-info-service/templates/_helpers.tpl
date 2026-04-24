@@ -55,6 +55,12 @@
 {{- printf "%s-data" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+
+
+{{/* Name of the preview Service used by the blue-green rollout strategy. */}}
+{{- define "devops-info-service.previewServiceName" -}}
+{{- printf "%s-preview" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{/* Labels used on all managed resources. */}}
 {{- define "devops-info-service.labels" -}}
 helm.sh/chart: {{ include "devops-info-service.chart" . }}

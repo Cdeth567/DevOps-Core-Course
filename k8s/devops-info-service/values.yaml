@@ -1,5 +1,5 @@
 # Default values for devops-info-service.
-# This chart packages the Lab 9 Kubernetes manifests into a reusable Helm chart.
+# This chart packages the DevOps Info Service with support for Argo Rollouts.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -40,10 +40,10 @@ container:
   port: 5000
 
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
   targetPort: http
-  nodePort: 30081
+  nodePort: null
 
 serviceAccount:
   create: true
@@ -68,8 +68,34 @@ vault:
 appConfig:
   host: 0.0.0.0
   debug: "False"
-  serviceVersion: "1.0.0-lab12"
-  serviceDescription: "DevOps course info service on Kubernetes"
+  serviceVersion: "1.0.0-lab14"
+  serviceDescription: "DevOps course info service with progressive delivery"
+
+rollout:
+  enabled: true
+  strategy: canary
+  progressDeadlineSeconds: 600
+  restartAt: ""
+  canary:
+    maxSurge: 1
+    maxUnavailable: 0
+    steps:
+      - setWeight: 20
+      - pause: {}
+      - setWeight: 40
+      - pause:
+          duration: 30s
+      - setWeight: 60
+      - pause:
+          duration: 30s
+      - setWeight: 80
+      - pause:
+          duration: 30s
+      - setWeight: 100
+  blueGreen:
+    autoPromotionEnabled: false
+    autoPromotionSeconds: 0
+    scaleDownDelaySeconds: 30
 
 strategy:
   type: RollingUpdate
