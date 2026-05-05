@@ -12,6 +12,14 @@ service:
   port: 80
   targetPort: http
 
+rollout:
+  enabled: true
+  strategy: blueGreen
+  blueGreen:
+    autoPromotionEnabled: false
+    autoPromotionSeconds: 0
+    scaleDownDelaySeconds: 30
+
 resources:
   requests:
     cpu: 200m
@@ -39,5 +47,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-prod-lab13"
-  serviceDescription: "Production profile for DevOps Info Service managed by ArgoCD"
+  serviceVersion: "1.0.0-prod-lab14"
+  serviceDescription: "Production profile with blue-green rollout managed by Argo Rollouts"
