@@ -1,4 +1,4 @@
-replicaCount: 5
+replicaCount: 3
 environment: dev
 logLevel: DEBUG
 
@@ -12,25 +12,14 @@ service:
   port: 80
   targetPort: http
 
-rollout:
+statefulset:
   enabled: true
-  strategy: canary
-  canary:
-    maxSurge: 1
-    maxUnavailable: 0
-    steps:
-      - setWeight: 20
-      - pause: {}
-      - setWeight: 40
-      - pause:
-          duration: 30s
-      - setWeight: 60
-      - pause:
-          duration: 30s
-      - setWeight: 80
-      - pause:
-          duration: 30s
-      - setWeight: 100
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+
+rollout:
+  enabled: false
 
 resources:
   requests:
@@ -59,5 +48,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-dev-lab14"
-  serviceDescription: "Development profile with canary rollout managed by Argo Rollouts"
+  serviceVersion: "1.0.0-dev-lab15"
+  serviceDescription: "Development profile with StatefulSet and per-pod persistent storage"

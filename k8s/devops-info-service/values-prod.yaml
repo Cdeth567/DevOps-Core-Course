@@ -12,13 +12,14 @@ service:
   port: 80
   targetPort: http
 
-rollout:
+statefulset:
   enabled: true
-  strategy: blueGreen
-  blueGreen:
-    autoPromotionEnabled: false
-    autoPromotionSeconds: 0
-    scaleDownDelaySeconds: 30
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+
+rollout:
+  enabled: false
 
 resources:
   requests:
@@ -47,5 +48,5 @@ livenessProbe:
     port: http
 
 appConfig:
-  serviceVersion: "1.0.0-prod-lab14"
-  serviceDescription: "Production profile with blue-green rollout managed by Argo Rollouts"
+  serviceVersion: "1.0.0-prod-lab15"
+  serviceDescription: "Production profile with StatefulSet and stable persistent identities"
