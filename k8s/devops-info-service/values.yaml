@@ -1,5 +1,5 @@
 # Default values for devops-info-service.
-# This chart packages the DevOps Info Service with support for Argo Rollouts.
+# This chart packages the DevOps Info Service with support for StatefulSets, Deployments, and Rollouts.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -68,11 +68,17 @@ vault:
 appConfig:
   host: 0.0.0.0
   debug: "False"
-  serviceVersion: "1.0.0-lab14"
-  serviceDescription: "DevOps course info service with progressive delivery"
+  serviceVersion: "1.0.0-lab15"
+  serviceDescription: "DevOps course info service with StatefulSet storage"
+
+statefulset:
+  enabled: true
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
 
 rollout:
-  enabled: true
+  enabled: false
   strategy: canary
   progressDeadlineSeconds: 600
   restartAt: ""

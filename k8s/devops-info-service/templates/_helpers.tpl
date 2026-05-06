@@ -57,6 +57,11 @@
 
 
 
+{{/* Name of the headless Service used by the StatefulSet. */}}
+{{- define "devops-info-service.headlessServiceName" -}}
+{{- printf "%s-headless" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* Name of the preview Service used by the blue-green rollout strategy. */}}
 {{- define "devops-info-service.previewServiceName" -}}
 {{- printf "%s-preview" (include "devops-info-service.fullname" .) | trunc 63 | trimSuffix "-" -}}
