@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wait-for-service-demo
+  labels:
+    app: wait-for-service-demo
+spec:
+  restartPolicy: Never
+  initContainers:
+    - name: wait-for-grafana
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          until nslookup monitoring-grafana.monitoring.svc.cluster.local; do
+            echo "Waiting for monitoring-grafana.monitoring.svc.cluster.local..."
+            sleep 2
+          done
+          echo "Dependency is ready"
+  containers:
+    - name: main-app
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Main container started after dependency check"
+          sleep 3600

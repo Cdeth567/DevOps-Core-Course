@@ -1,0 +1,20 @@
+grafana:
+  adminPassword: prom-operator
+  service:
+    type: ClusterIP
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+kube-state-metrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
