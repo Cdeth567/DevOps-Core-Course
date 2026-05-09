@@ -1,0 +1,34 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "devops-edge-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-05-09",
+	"workers_dev": true,
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"APP_NAME": "devops-edge-api",
+		"APP_VERSION": "1.0.1",
+		"COURSE_NAME": "DevOps Core Course",
+		"ENVIRONMENT": "production"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "SETTINGS",
+			"id": "cb681864627b42a39658cb49dcd6e881"
+		}
+	]
+	// After running:
+	// npx wrangler kv namespace create SETTINGS
+	// npx wrangler kv namespace create SETTINGS --preview
+	// add the returned IDs below.
+	//,
+	//"kv_namespaces": [
+	//  {
+	//    "binding": "SETTINGS",
+	//    "id": "replace-with-kv-namespace-id",
+	//    "preview_id": "replace-with-kv-preview-namespace-id"
+	//  }
+	//]
+}
