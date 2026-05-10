@@ -5,3 +5,6 @@ kubectl-argo-rollouts.exe
 cloudflare/edge-api/node_modules/
 cloudflare/edge-api/.wrangler/
 cloudflare/edge-api/.dev.vars
+
+# lab18 nix build symlink
+labs/lab18/app_python/result
