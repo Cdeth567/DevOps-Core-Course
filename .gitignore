@@ -1,3 +1,7 @@
 test.vault_pass
 argocd.exe
 kubectl-argo-rollouts.exe
+# Cloudflare Workers
+cloudflare/edge-api/node_modules/
+cloudflare/edge-api/.wrangler/
+cloudflare/edge-api/.dev.vars
